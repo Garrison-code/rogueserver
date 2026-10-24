@@ -19,7 +19,13 @@ package defs
 
 const SessionSlotCount = 5
 
+type ImportHistory struct {
+	Version      int      `json:"version"`
+	Fingerprints []string `json:"fingerprints"`
+}
+
 type SystemSaveData struct {
+	ImportHistory      *ImportHistory     `json:"importHistory,omitempty"`
 	TrainerId          int                `json:"trainerId"`
 	SecretId           int                `json:"secretId"`
 	Gender             int                `json:"gender"`
