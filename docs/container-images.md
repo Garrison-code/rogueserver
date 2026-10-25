@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Garrison-code
+
+SPDX-License-Identifier: CC-BY-NC-SA-4.0
+-->
+
 # Container images
 
 GitHub Actions publishes the existing Dockerfile to `ghcr.io/garrison-code/rogueserver`.
