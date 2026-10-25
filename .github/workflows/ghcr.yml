@@ -85,5 +85,5 @@ jobs:
             printf '%s\n' "$IMAGE_TAGS"
             echo '~~~'
             echo
-            echo "Pinned image: `$IMAGE_NAME@$IMAGE_DIGEST`"
+            printf 'Pinned image: `%s@%s`\n' "$IMAGE_NAME" "$IMAGE_DIGEST"
           } >> "$GITHUB_STEP_SUMMARY"
