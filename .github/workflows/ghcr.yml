@@ -1,64 +1,89 @@
-name: Publish to GHCR
+name: Publish container image
 
 on:
   push:
-    branches:
-      - master
+    branches: [master, develop]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
+
+concurrency:
+  group: ghcr-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  changes:
-    uses: ./.github/workflows/filter-changes.yml
-    permissions:
-      pull-requests: read
-      contents: read
-
-  build:
-    needs: changes
-    name: Build and publish to GHCR (${{ matrix.variant }})
-    if: needs.changes.outputs.ghcr == 'true' && github.repository == 'pagefaultgames/rogueserver'
-    env:
-      GO_VERSION: 1.22
+  publish:
+    if: >-
+      github.repository == 'Garrison-code/rogueserver' &&
+      (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop')
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - variant: prod
-            build_tags: devsetup
-            tag_suffix: ""
-          - variant: beta
-            build_tags: devsetup,beta
-            tag_suffix: -beta
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # Build records are unnecessary artifacts for this image-only workflow.
+      DOCKER_BUILD_RECORD_UPLOAD: "false"
     steps:
-      - name: Setup Docker BuildX
-        uses: docker/setup-buildx-action@v3
-      - name: Log into container registry
-        uses: docker/login-action@v3
+      - name: Check out source
+        uses: actions/checkout@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ github.token }}
-      - name: Extract Docker metadata
+          persist-credentials: false
+
+      - name: Set lowercase image name
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set image tags and labels
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}
-          flavor: |
-            suffix=${{ matrix.tag_suffix }},onlatest=true
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
+          images: ${{ steps.image.outputs.name }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
+            type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=sha,format=long,prefix=sha-
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.variant }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}
-          build-args: |
-            GO_VERSION=${{ env.GO_VERSION }}
-            BUILD_TAGS=${{ matrix.build_tags }}
-            VERSION=${{ github.ref_name }}-SNAPSHOT
-            COMMIT_SHA=${{ env.GITHUB_SHA_SHORT }}
+          cache-from: type=gha,scope=container-${{ github.ref_name }}
+          cache-to: type=gha,mode=min,scope=container-${{ github.ref_name }}
+
+      - name: Summarize published image
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        shell: bash
+        run: |
+          {
+            echo "### Published container image"
+            echo
+            echo 'Tags:'
+            echo '~~~text'
+            printf '%s\n' "$IMAGE_TAGS"
+            echo '~~~'
+            echo
+            echo "Pinned image: `$IMAGE_NAME@$IMAGE_DIGEST`"
+          } >> "$GITHUB_STEP_SUMMARY"
