@@ -15,9 +15,13 @@ RUN go mod download && go mod verify
 COPY . /src/
 
 ARG BUILD_TAGS=devsetup
+ARG BUILD_REVISION=unknown
+ARG BUILD_ID=unknown
 
 RUN CGO_ENABLED=0 \
-    go build -tags="${BUILD_TAGS}" -o rogueserver
+    go build -tags="${BUILD_TAGS}" \
+    -ldflags="-X github.com/pagefaultgames/rogueserver/api.BuildRevision=${BUILD_REVISION} -X github.com/pagefaultgames/rogueserver/api.BuildID=${BUILD_ID}" \
+    -o rogueserver
 
 RUN chmod +x /src/rogueserver
 

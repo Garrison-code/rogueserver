@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Garrison-code
+# SPDX-License-Identifier: AGPL-3.0-only
 name: Publish container image
 
 on:
@@ -13,18 +15,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish:
+  quality:
     if: >-
       github.repository == 'Garrison-code/rogueserver' &&
-      (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop')
+      github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 17
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      eligible: ${{ steps.gate.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Wait for required checks on this commit
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/publish_notify.py quality
+
+  publish:
+    needs: quality
+    outputs:
+      image_digest: ${{ steps.build.outputs.digest }}
+    if: >-
+      always() && github.repository == 'Garrison-code/rogueserver' &&
+      (github.ref == 'refs/heads/master' ||
+       (github.ref == 'refs/heads/develop' && needs.quality.result == 'success' && needs.quality.outputs.eligible == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read
       packages: write
+      actions: read
     env:
       # Build records are unnecessary artifacts for this image-only workflow.
       DOCKER_BUILD_RECORD_UPLOAD: "false"
+      BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -57,20 +87,34 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Confirm develop is still current before publishing
+        if: github.ref_name == 'develop'
+        id: current
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/publish_notify.py quality
+
       - name: Build and push image
+        if: github.ref_name != 'develop' || steps.current.outputs.eligible == 'true'
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
+          build-args: |
+            BUILD_REVISION=${{ github.sha }}
+            BUILD_ID=${{ env.BUILD_ID }}
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            io.garrix.build-id=${{ env.BUILD_ID }}
           cache-from: type=gha,scope=container-${{ github.ref_name }}
           cache-to: type=gha,mode=min,scope=container-${{ github.ref_name }}
 
       - name: Summarize published image
+        if: steps.build.outputs.digest != ''
         env:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
           IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
@@ -85,5 +129,51 @@ jobs:
             printf '%s\n' "$IMAGE_TAGS"
             echo '~~~'
             echo
-            printf 'Pinned image: `%s@%s`\n' "$IMAGE_NAME" "$IMAGE_DIGEST"
+            printf 'Pinned image: %s@%s\n' "$IMAGE_NAME" "$IMAGE_DIGEST"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  registry-ready:
+    needs: publish
+    if: >-
+      github.ref == 'refs/heads/develop' &&
+      needs.publish.result == 'success' && needs.publish.outputs.image_digest != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      ready: ${{ steps.registry.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Confirm the published tag and build identity in GHCR
+        id: registry
+        env:
+          BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          PUBLISHED_DIGEST: ${{ needs.publish.outputs.image_digest }}
+        run: python3 .github/scripts/publish_notify.py published
+
+  notify-develop:
+    needs: [publish, registry-ready]
+    if: >-
+      vars.DEV_AUTO_DEPLOY_ENABLED == 'true' &&
+      github.ref == 'refs/heads/develop' &&
+      needs.registry-ready.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Notify the frontend coordinator after registry confirmation
+        env:
+          GH_TOKEN: ${{ secrets.DEV_DEPLOY_GH_TOKEN }}
+          BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          PUBLISHED_DIGEST: ${{ needs.publish.outputs.image_digest }}
+        run: python3 .github/scripts/publish_notify.py notify
