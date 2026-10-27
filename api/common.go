@@ -49,6 +49,7 @@ func Init(mux *http.ServeMux) error {
 
 	// game
 	mux.HandleFunc("GET /game/titlestats", handleGameTitleStats)
+	mux.HandleFunc("GET /game/build-info", handleGameBuildInfo)
 	mux.HandleFunc("GET /game/classicsessioncount", handleGameClassicSessionCount)
 
 	// savedata
