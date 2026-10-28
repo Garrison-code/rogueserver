@@ -91,7 +91,8 @@ jobs:
     name: Deployment notification checks
     if: >-
       github.repository == 'Garrison-code/rogueserver' &&
-      (github.ref == 'refs/heads/develop' || github.base_ref == 'develop')
+      (github.ref == 'refs/heads/develop' || github.base_ref == 'develop' ||
+       github.ref == 'refs/heads/master' || github.base_ref == 'master')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
