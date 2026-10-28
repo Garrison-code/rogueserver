@@ -58,9 +58,11 @@ def output(name, value):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
             out.write(f"{name}={value}\n")
 
-def registry(repository):
+def registry(repository, tag="develop"):
     if repository not in REPOSITORIES:
         raise Failure("Repository is not allowed")
+    if tag not in ("develop", "latest"):
+        raise Failure("Registry tag is not allowed")
     image = repository.lower()
     auth = http("https://ghcr.io/token?" + urllib.parse.urlencode({
         "service": "ghcr.io", "scope": f"repository:{image}:pull",
@@ -84,7 +86,7 @@ def registry(repository):
                 return response.headers, json.load(response)
         except (urllib.error.HTTPError, OSError, ValueError):
             raise Failure("Cannot read anonymous GHCR image metadata") from None
-    headers, manifest = fetch("/manifests/develop")
+    headers, manifest = fetch(f"/manifests/{tag}")
     digest = headers.get("Docker-Content-Digest", "")
     if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
         raise Failure("Registry did not return a valid tag digest")
@@ -103,7 +105,7 @@ def registry(repository):
         raise Failure("Image lacks valid revision/build_id labels; deploy metadata images first")
     if labels.get("org.opencontainers.image.source") != f"https://github.com/{repository}":
         raise Failure("Image source label does not match the approved repository")
-    return {"repository": repository, "image": f"ghcr.io/{image}:develop",
+    return {"repository": repository, "image": f"ghcr.io/{image}:{tag}",
             "digest": digest, "revision": revision, "build_id": build_id}
 
 def runs_for(repository, revision, token):
@@ -149,16 +151,16 @@ def quality(repository, revision, token, wait=False):
             raise Failure("Required workflows not ready: " + ", ".join(pending))
         time.sleep(15)
 
-def publication(image, token):
+def publication(image, token, branch="develop"):
     match = BUILD_ID.fullmatch(image["build_id"])
     run_id, attempt = match.groups()
     repository = image["repository"]
     run = github(f"/repos/{repository}/actions/runs/{run_id}", token)
-    if (run["head_sha"] != image["revision"] or run["head_branch"] != "develop"
+    if (run["head_sha"] != image["revision"] or run["head_branch"] != branch
             or run["event"] not in ("push", "workflow_dispatch")
             or str(run.get("run_attempt", 1)) != attempt
             or run["path"].split("@")[0] != ".github/workflows/ghcr.yml"):
-        raise Failure("Image build identity does not match an approved develop publication")
+        raise Failure(f"Image build identity does not match an approved {branch} publication")
     # notify may still be running, so the publish job, not the whole run, is authoritative.
     if not any(job["name"] == "publish" and job["conclusion"] == "success"
                for job in jobs_for(repository, run_id, token)):
