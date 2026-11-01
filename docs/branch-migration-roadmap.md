@@ -15,7 +15,8 @@ pokerogue 有一份對應的文件：`pokerogue/docs/branch-migration-roadmap.md
 - 上游的 `ghcr.yml` 在 push 到 `master` 時，會建 `prod` 和 `beta` 兩種 image。這裡的 `beta` 是 Go 的 build tag，不是 branch。上游的 workflow 都有加 `github.repository == 'pagefaultgames/rogueserver'` 的條件，在 fork 裡不會執行。
 - fork 時另外加了 `develop` branch，並在 `ci.yml`、`ghcr.yml`、`filter-changes.yml` 加了 develop 專用的 job。
 - 原本部署用的 VPS 已經退掉，`notify-develop` 已經在 `develop` 上刪除（commit `ba616f99`）。
-- 新的部署目標：Oracle Cloud Always Free 的 **ARM（arm64）** VM，用 docker compose 跑 rogueserver、MariaDB 和 pokerogue 前端，前面套 Cloudflare 免費方案。部署本身是第 4 階段，不在這份文件的範圍內。
+- 新的部署目標：Oracle Cloud Always Free 的 **ARM（arm64）** VM，用 docker compose 跑 rogueserver、MariaDB、pokerogue 前端和 cloudflared。對外連線走 Cloudflare Tunnel，VM 不開 80、443。部署本身是第 4 階段，不在這份文件的範圍內。
+- 子網域：`api.<網域>` 對應 rogueserver，`game.<網域>` 對應前端。正式模式下 rogueserver 的 `clienturl` 要設成 `https://game.<網域>`，結尾不加 `/`，否則 CORS 會擋。
 
 ## 目標狀態
 
@@ -80,7 +81,7 @@ pokerogue 有一份對應的文件：`pokerogue/docs/branch-migration-roadmap.md
 ## 不在這份文件範圍內的事
 
 - **第 0 階段**：Oracle Cloud、Cloudflare、Hostinger nameserver 的設定，由使用者自己處理。
-- **第 4 階段**：VM 上的 docker compose（rogueserver、MariaDB、前端）、Cloudflare DNS、自動更新。
+- **第 4 階段**：VM 上的 docker compose（rogueserver、MariaDB、前端、cloudflared）、Cloudflare Tunnel、自動更新（建議 Watchtower）。
 - **第 5 階段**：第一次正式發版並驗證。
 - **第 6 階段**：
   - 刪除 `develop` branch。
