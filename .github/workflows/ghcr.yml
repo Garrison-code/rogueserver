@@ -154,26 +154,3 @@ jobs:
           BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
           PUBLISHED_DIGEST: ${{ needs.publish.outputs.image_digest }}
         run: python3 .github/scripts/publish_notify.py published
-
-  notify-develop:
-    needs: [publish, registry-ready]
-    if: >-
-      vars.DEV_AUTO_DEPLOY_ENABLED == 'true' &&
-      github.ref == 'refs/heads/develop' &&
-      needs.registry-ready.outputs.ready == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      actions: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: .github/scripts
-          persist-credentials: false
-      - name: Notify the frontend coordinator after registry confirmation
-        env:
-          GH_TOKEN: ${{ secrets.DEV_DEPLOY_GH_TOKEN }}
-          BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-          PUBLISHED_DIGEST: ${{ needs.publish.outputs.image_digest }}
-        run: python3 .github/scripts/publish_notify.py notify
