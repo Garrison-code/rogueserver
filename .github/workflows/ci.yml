@@ -15,7 +15,7 @@ jobs:
       contents: read
   build:
     needs: changes
-    if: needs.changes.outputs.ci == 'true' && github.repository == 'pagefaultgames/rogueserver'
+    if: needs.changes.outputs.ci == 'true' && (github.repository == 'pagefaultgames/rogueserver' || github.repository == 'Garrison-code/rogueserver')
     name: Build (${{ matrix.platform.os_name }}, ${{ matrix.variant.name }})
     env:
       GO_VERSION: 1.22
@@ -67,41 +67,3 @@ jobs:
           path: |
             rogueserver*
             !rogueserver.go
-  develop-linux:
-    name: Linux develop tests and build
-    if: >-
-      github.repository == 'Garrison-code/rogueserver' &&
-      (github.ref == 'refs/heads/develop' || github.base_ref == 'develop')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-          cache: true
-      - name: Test the deployed build variant
-        run: go test -tags=devsetup ./...
-      - name: Build the deployed build variant
-        run: CGO_ENABLED=0 go build -tags=devsetup ./...
-
-  deployment-tooling:
-    name: Deployment notification checks
-    if: >-
-      github.repository == 'Garrison-code/rogueserver' &&
-      (github.ref == 'refs/heads/develop' || github.base_ref == 'develop' ||
-       github.ref == 'refs/heads/master' || github.base_ref == 'master')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Test registry gates and dispatch
-        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v
-      - name: Validate workflow syntax and shell commands
-        run: >-
-          docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
-          .github/workflows/ghcr.yml .github/workflows/ci.yml

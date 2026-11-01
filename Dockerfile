@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 ARG GO_VERSION=1.22
 
-FROM docker.io/library/golang:${GO_VERSION} AS builder
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:${GO_VERSION} AS builder
 
 WORKDIR /src
 
@@ -17,8 +17,10 @@ COPY . /src/
 ARG BUILD_TAGS=devsetup
 ARG BUILD_REVISION=unknown
 ARG BUILD_ID=unknown
+ARG TARGETOS
+ARG TARGETARCH
 
-RUN CGO_ENABLED=0 \
+RUN CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
     go build -tags="${BUILD_TAGS}" \
     -ldflags="-X github.com/pagefaultgames/rogueserver/api.BuildRevision=${BUILD_REVISION} -X github.com/pagefaultgames/rogueserver/api.BuildID=${BUILD_ID}" \
     -o rogueserver
