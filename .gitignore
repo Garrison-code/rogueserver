@@ -16,3 +16,18 @@ secret.key
 .vscode/
 
 /.vs
+.spectra/
+docs/spectra/.vector-search.db*
+.spectra.yaml
+
+# agents
+.agent/
+.agents/
+.claude/
+.cursor/
+.cursorrules
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+
+config.yaml
