@@ -16,7 +16,7 @@ pokerogue 有一份對應的文件：`pokerogue/docs/branch-migration-roadmap.md
 - fork 時另外加了 `develop` branch，並在 `ci.yml`、`ghcr.yml`、`filter-changes.yml` 加了 develop 專用的 job。
 - 原本部署用的 VPS 已經退掉，`notify-develop` 已經在 `develop` 上刪除（commit `ba616f99`）。
 - 新的部署目標：Oracle Cloud Always Free 的 **ARM（arm64）** VM，用 docker compose 跑 rogueserver、MariaDB、pokerogue 前端和 cloudflared。對外連線走 Cloudflare Tunnel，VM 不開 80、443。部署本身是第 4 階段，不在這份文件的範圍內。
-- 子網域：`api.<網域>` 對應 rogueserver，`game.<網域>` 對應前端。正式模式下 rogueserver 的 `clienturl` 要設成 `https://game.<網域>`，結尾不加 `/`，否則 CORS 會擋。
+- 子網域：`api.<網域>` 對應 rogueserver，`game.<網域>` 對應前端。正式模式下 rogueserver 的 `gameurl` 要設成 `https://game.<網域>`，結尾不加 `/`，否則 CORS 會擋。
 
 ## 目標狀態
 

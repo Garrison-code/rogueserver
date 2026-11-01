@@ -47,3 +47,5 @@ jobs:
             ci:
               - *common
               - .golangci.yml
+              - .github/workflows/ci.yml
+              - .github/workflows/filter-changes.yml
